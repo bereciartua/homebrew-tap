@@ -16,6 +16,8 @@ export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_DEVELOPER=1
 
 brew untap --force "$tap" 2> /dev/null || true
 brew tap "$tap" "$tap_dir"
+# Homebrew loads a third-party tap only once it is trusted (https://docs.brew.sh/Tap-Trust).
+brew trust "$tap"
 
 brew style --cask "$cask"
 # brew style would hold the scripts to Homebrew's own shell format; shellcheck is enough.

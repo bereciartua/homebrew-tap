@@ -59,7 +59,8 @@ V="$version" S="$sha256" perl -pi -e '
     s/^  version ".*"$/  version "$ENV{V}"/;
     s/^  sha256 ".*"$/  sha256 "$ENV{S}"/;
 ' "$cask"
-grep -qx "  version \"$version\"" "$cask" && grep -qx "  sha256 \"$sha256\"" "$cask" ||
+if ! grep -qx "  version \"$version\"" "$cask" || ! grep -qx "  sha256 \"$sha256\"" "$cask"; then
     fail "couldn't rewrite $cask"
+fi
 printf 'update-cask: %s -> %s (attested, SHA-256 %s)\n' "$current" "$version" "$sha256"
 output changed true
