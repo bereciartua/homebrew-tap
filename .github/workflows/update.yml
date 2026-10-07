@@ -1,0 +1,44 @@
+name: Update
+
+# Points the cask at EK Bridge's latest release once its DMG's build
+# attestation and checksum check out (scripts/update-cask.sh), then checks and
+# installs it before pushing. Runs every six hours and by hand:
+#   gh workflow run update.yml --repo bereciartua/homebrew-tap
+on:
+  schedule:
+    - cron: "23 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version (default the latest)
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update the cask
+    runs-on: macos-26
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - id: cask
+        run: sh scripts/update-cask.sh ${VERSION:+"$VERSION"}
+      - if: steps.cask.outputs.changed == 'true'
+        name: Commit, check and push
+        env:
+          NEW_VERSION: ${{ steps.cask.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ek-bridge $NEW_VERSION" -- Casks/ek-bridge.rb
+          sh scripts/check.sh --install
+          git push origin HEAD:main
