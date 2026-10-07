@@ -17,7 +17,10 @@ export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_ANALYTICS=1 HOMEBREW_DEVELOPER=1
 brew untap --force "$tap" 2> /dev/null || true
 brew tap "$tap" "$tap_dir"
 
-brew style "$tap"
+brew style --cask "$cask"
+# brew style would hold the scripts to Homebrew's own shell format; shellcheck is enough.
+if [ -n "${CI:-}" ] && ! command -v shellcheck > /dev/null; then brew install --quiet shellcheck; fi
+if command -v shellcheck > /dev/null; then shellcheck "$tap_dir"/scripts/*.sh; fi
 brew audit --cask --strict --online "$cask"
 version=$(sed -n 's/^  version "\(.*\)"$/\1/p' "$tap_dir/Casks/ek-bridge.rb")
 found=$(brew livecheck --cask --json "$cask" | ruby -rjson -e 'print JSON.parse(STDIN.read)[0].dig("version", "latest")')
