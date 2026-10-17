@@ -1,6 +1,6 @@
 cask "ek-bridge" do
-  version "0.11.1"
-  sha256 "4dbee48856d0eea48ed34fe0b56a48e2efcdb2130ac8be584e57d5ae6606a48d"
+  version "0.11.2"
+  sha256 "a533278b875760e98b1e10df08c5cdfe3e56ece927e368da2bf6f428ccaf4276"
 
   url "https://github.com/bereciartua/ek-bridge/releases/download/v#{version}/EKBridge-#{version}.dmg"
   name "EK Bridge"
