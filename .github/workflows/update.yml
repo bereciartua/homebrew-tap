@@ -1,16 +1,23 @@
 name: Update
 
-# Points the cask at EK Bridge's latest release once its DMG's build
+# Points each cask at its app's latest release once the DMG's build
 # attestation and checksum check out (scripts/update-cask.sh), then checks and
-# installs it before pushing. Runs every six hours and by hand:
+# installs it before pushing. One job per cask, one at a time, so a failing
+# cask doesn't hold up the others. Runs every six hours and by hand:
 #   gh workflow run update.yml --repo bereciartua/homebrew-tap
+#   gh workflow run update.yml --repo bereciartua/homebrew-tap -f cask=funes-vault -f version=0.1.0
 on:
   schedule:
     - cron: "23 */6 * * *"
   workflow_dispatch:
     inputs:
+      cask:
+        description: Cask to update
+        type: choice
+        options: [all, ek-bridge, funes-vault]
+        default: all
       version:
-        description: Release version (default the latest)
+        description: Release version (default the latest; needs a single cask)
         required: false
 
 permissions:
@@ -22,19 +29,40 @@ concurrency:
 
 jobs:
   update:
-    name: Update the cask
+    name: Update ${{ matrix.cask }}
     runs-on: macos-26
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        cask: [ek-bridge, funes-vault]
     env:
       GH_TOKEN: ${{ github.token }}
       # brew audit calls the GitHub API; without a token it shares the
       # runner IP's 60 requests an hour and fails when they run out.
       HOMEBREW_GITHUB_API_TOKEN: ${{ github.token }}
+      CASK: ${{ matrix.cask }}
+      SELECTED: ${{ inputs.cask || 'all' }}
       VERSION: ${{ inputs.version }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - id: cask
-        run: sh scripts/update-cask.sh ${VERSION:+"$VERSION"}
+      - id: selected
+        run: |
+          if [ -n "$VERSION" ] && [ "$SELECTED" = all ]; then
+            echo "::error::A version needs a single cask (-f cask=...)"
+            exit 1
+          fi
+          if [ "$SELECTED" = all ] || [ "$SELECTED" = "$CASK" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.selected.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The full history, so the push can rebase onto another cask's bump.
+          fetch-depth: 0
+      - if: steps.selected.outputs.run == 'true'
+        id: cask
+        run: sh scripts/update-cask.sh "$CASK" ${VERSION:+"$VERSION"}
       - if: steps.cask.outputs.changed == 'true'
         name: Commit, check and push
         env:
@@ -42,6 +70,8 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -m "ek-bridge $NEW_VERSION" -- Casks/ek-bridge.rb
-          sh scripts/check.sh --install
+          git commit -m "$CASK $NEW_VERSION" -- "Casks/$CASK.rb"
+          sh scripts/check.sh --install "$CASK"
+          # An earlier job in this run may have pushed another cask's bump.
+          git pull --rebase origin main
           git push origin HEAD:main

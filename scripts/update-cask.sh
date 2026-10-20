@@ -1,20 +1,29 @@
 #!/bin/sh
-# Points Casks/ek-bridge.rb at an EK Bridge release: the latest published one,
-# or the version given (`sh scripts/update-cask.sh 0.9.0`).
+# Points Casks/<cask>.rb at a release of its app: the latest published one, or
+# the version given (`sh scripts/update-cask.sh ek-bridge 0.9.0`). The casks
+# and their repositories are listed in scripts/casks.sh.
 #
 # The DMG is downloaded and trusted only if its build attestation says the
-# ek-bridge release workflow built it from that version's tag on a GitHub
-# runner, and its SHA-256 matches the release's SHA256SUMS. The cask then gets
-# that version and SHA-256. Never moves the cask to an older version.
+# app's release workflow built it from that version's tag on a GitHub runner,
+# and its SHA-256 matches the release's SHA256SUMS. The cask then gets that
+# version and SHA-256. Never moves a cask to an older version. A cask whose
+# sha256 isn't a SHA-256 yet (a new cask's placeholder) is filled in even at
+# the same version.
 #
 # Needs gh (signed in, or GH_TOKEN). In GitHub Actions it writes `changed` and
 # `version` to $GITHUB_OUTPUT.
 set -eu
 
-repo=bereciartua/ek-bridge
-workflow="$repo/.github/workflows/release.yml"
 tap_dir=$(cd "$(dirname "$0")/.." && pwd)
-cask="$tap_dir/Casks/ek-bridge.rb"
+# shellcheck source=scripts/casks.sh
+. "$tap_dir/scripts/casks.sh"
+
+[ $# -ge 1 ] || { printf 'usage: sh scripts/update-cask.sh CASK [VERSION]   (CASK: %s)\n' "$casks" >&2; exit 2; }
+name=$1
+shift
+cask_info "$name"
+workflow="$repo/.github/workflows/release.yml"
+cask="$tap_dir/Casks/$name.rb"
 
 output() {
     if [ -n "${GITHUB_OUTPUT:-}" ]; then printf '%s=%s\n' "$1" "$2" >> "$GITHUB_OUTPUT"; fi
@@ -34,19 +43,20 @@ case "$version" in
     *[!0-9.]* | "" | .* | *.) fail "\"$version\" isn't a release version" ;;
 esac
 current=$(sed -n 's/^  version "\(.*\)"$/\1/p' "$cask")
+current_sha=$(sed -n 's/^  sha256 "\(.*\)"$/\1/p' "$cask")
 output version "$version"
-if [ "$version" = "$current" ]; then
-    printf 'update-cask: already at %s\n' "$version"
+if [ "$version" = "$current" ] && printf '%s\n' "$current_sha" | grep -qx '[0-9a-f]\{64\}'; then
+    printf 'update-cask: %s already at %s\n' "$name" "$version"
     output changed false
     exit 0
 fi
 if [ "$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -n 1)" != "$version" ]; then
-    fail "$tag is older than the cask's $current"
+    fail "$tag is older than the $name cask's $current"
 fi
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-dmg="EKBridge-$version.dmg"
+dmg="$dmg_prefix-$version.dmg"
 gh release download "$tag" --repo "$repo" --dir "$work" --pattern "$dmg" --pattern SHA256SUMS
 gh attestation verify "$work/$dmg" --repo "$repo" --signer-workflow "$workflow" \
     --source-ref "refs/tags/$tag" --deny-self-hosted-runners > /dev/null ||
@@ -62,5 +72,5 @@ V="$version" S="$sha256" perl -pi -e '
 if ! grep -qx "  version \"$version\"" "$cask" || ! grep -qx "  sha256 \"$sha256\"" "$cask"; then
     fail "couldn't rewrite $cask"
 fi
-printf 'update-cask: %s -> %s (attested, SHA-256 %s)\n' "$current" "$version" "$sha256"
+printf 'update-cask: %s %s -> %s (attested, SHA-256 %s)\n' "$name" "$current" "$version" "$sha256"
 output changed true
