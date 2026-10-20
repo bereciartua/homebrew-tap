@@ -5,6 +5,8 @@
 #                      <dmg_prefix>-<version>.dmg), app (the bundle in
 #                      /Applications) and binary (the command it links)
 # shellcheck shell=sh
+# The variables cask_info sets are read by the scripts that source this file.
+# shellcheck disable=SC2034
 
 casks="ek-bridge funes-vault"
 
