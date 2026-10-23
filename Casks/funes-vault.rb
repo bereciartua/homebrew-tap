@@ -1,8 +1,8 @@
 cask "funes-vault" do
-  version "0.1.4"
+  version "0.2.0"
   # Placeholder until the release is out: scripts/update-cask.sh fills in the
   # SHA-256 of the attested DMG (and refuses to keep anything else).
-  sha256 "a40e77f3634f24118889d3087e400a9bfdefa5d1e8cba98f63763f3071bbeb2a"
+  sha256 "5a2a96fc3bb579ba4e5c7c2f083e6a0bb129eba22beb3c9c9f1fba7ffa6b23a2"
 
   url "https://github.com/bereciartua/funes-vault-app/releases/download/v#{version}/FunesVault-#{version}.dmg"
   name "Funes Vault"
